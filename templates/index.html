@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Product Lookup</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <main class="page-shell">
+    <section class="card">
+      <header>
+        <h1>Product Recommendation Engine</h1>
+        <p>Enter a product category or name to get AI-powered recommendations.</p>
+      </header>
+
+      <form id="searchForm" class="search-form">
+        <label for="productName">Product name or category</label>
+        <input id="productName" name="productName" type="text" placeholder="e.g. Laptop, Phone, Headphones" required />
+        <button type="submit">Get Recommendations</button>
+      </form>
+
+      <section id="result" class="result hidden">
+        <h2>AI Recommendations</h2>
+        <div id="aiOutput" class="ai-output"></div>
+      </section>
+
+      <section id="message" class="message"></section>
+    </section>
+  </main>
+
+  <script>
+    const form = document.getElementById('searchForm');
+    const resultSection = document.getElementById('result');
+    const message = document.getElementById('message');
+    const aiOutput = document.getElementById('aiOutput');
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      resultSection.classList.add('hidden');
+      message.textContent = 'Loading recommendations...';
+      message.className = 'message loading';
+
+      const productName = document.getElementById('productName').value.trim();
+      if (!productName) {
+        message.textContent = 'Please enter a product name or category.';
+        message.className = 'message error';
+        return;
+      }
+
+      try {
+        const response = await fetch(`/product?name=${encodeURIComponent(productName)}`);
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.detail || 'Product not found');
+        }
+
+        const data = await response.json();
+        
+        // Handle JSON with recommendations array
+        if (data.recommendations && Array.isArray(data.recommendations)) {
+          aiOutput.innerHTML = displayMultipleProducts(data.recommendations);
+        } 
+        // Handle if response is a string (AI output) or plain text
+        else if (typeof data === 'string') {
+          aiOutput.innerHTML = formatAIOutput(data);
+        } 
+        else if (data.content) {
+          aiOutput.innerHTML = formatAIOutput(data.content);
+        } 
+        else if (data.description) {
+          // Single structured product data
+          aiOutput.innerHTML = `
+            <div class="product-card">
+              <h3>${escapeHtml(data.name)}</h3>
+              <p><strong>Category:</strong> ${escapeHtml(data.category)}</p>
+              <p><strong>Price:</strong> ${escapeHtml(data.price)}</p>
+              <p><strong>Rating:</strong> ${data.rating} / 5</p>
+              <p><strong>Description:</strong> ${escapeHtml(data.description)}</p>
+            </div>
+          `;
+        } 
+        else {
+          // Fallback: display entire message as-is
+          aiOutput.innerHTML = formatAIOutput(JSON.stringify(data, null, 2));
+        }
+
+        message.textContent = '';
+        resultSection.classList.remove('hidden');
+      } catch (error) {
+        resultSection.classList.add('hidden');
+        message.textContent = error.message;
+        message.className = 'message error';
+      }
+    });
+
+    function displayMultipleProducts(products) {
+      return products.map((product, index) => `
+        <div class="product-card" style="animation-delay: ${index * 0.1}s;">
+          <div class="product-index">${index + 1}</div>
+          <h3>${escapeHtml(product.name)}</h3>
+          <div class="product-details">
+            <p><strong>Price:</strong> <span class="price-tag">${escapeHtml(product.price)}</span></p>
+            <p><strong>Description:</strong> ${escapeHtml(product.Description)}</p>
+            <p><strong>Why Recommended:</strong> <span class="reason-text">${escapeHtml(product.reason)}</span></p>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function formatAIOutput(text) {
+      // Convert plain text to formatted HTML with line breaks and numbered lists
+      let html = text
+        .split('\n')
+        .map(line => {
+          const trimmed = line.trim();
+          if (!trimmed) return '';
+          
+          // Check if line is a numbered item
+          if (/^\d+\./.test(trimmed)) {
+            return `<div class="numbered-item">${escapeHtml(trimmed)}</div>`;
+          }
+          
+          // Check if line starts with a dash (sub-item)
+          if (/^[-•]/.test(trimmed)) {
+            return `<div class="sub-item">${escapeHtml(trimmed)}</div>`;
+          }
+          
+          // Check if line is bold text (like "Product Name:", "Features:", etc)
+          if (/^[A-Z][\w\s]+:/.test(trimmed)) {
+            return `<div class="label">${escapeHtml(trimmed)}</div>`;
+          }
+          
+          return `<div class="text-line">${escapeHtml(trimmed)}</div>`;
+        })
+        .filter(line => line)
+        .join('');
+      
+      return html;
+    }
+
+    function escapeHtml(text) {
+      const map = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;'
+      };
+      return text.replace(/[&<>"']/g, m => map[m]);
+    }
+  </script>
+</body>
+</html>
+
