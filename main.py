@@ -22,14 +22,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Serve static frontend files from the workspace root
-static_path = Path(__file__).parent
-app.mount("/static", StaticFiles(directory=str(static_path)), name="static")
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
 @app.get("/")
 def home(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+    return templates.TemplateResponse(
+        request=request,
+        name="index.html"
+    )
 
 
 @app.get("/product")
